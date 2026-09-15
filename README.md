@@ -15,7 +15,7 @@ and publishes a dedicated live dashboard website.
    / DROPPING / HOLDING status per token.
 3. `generate_rank_shift_report()` asks Claude to turn that data into a short
    WhatsApp-ready summary.
-4. `send_whatsapp_alert()` sends it to your phone via the Twilio WhatsApp API.
+4. `send_whatsapp_alert()` sends it to your phone via the CallMeBot WhatsApp API.
 5. `render_site()` writes a standalone dashboard (`docs/index.html`) showing
    the full leaderboard, styled and theme-aware.
 6. The new rankings are saved back to `leaderboard_state.json` so the next
@@ -33,16 +33,21 @@ Required environment variables:
 | Variable               | Description                                                        |
 |-------------------------|--------------------------------------------------------------------|
 | `ANTHROPIC_API_KEY`     | API key used to generate the report with Claude                    |
-| `TWILIO_ACCOUNT_SID`    | Twilio account SID                                                  |
-| `TWILIO_AUTH_TOKEN`     | Twilio auth token                                                    |
-| `TWILIO_WHATSAPP_FROM`  | Your Twilio WhatsApp sender number, e.g. `+14155238886`              |
-| `TWILIO_WHATSAPP_TO`    | Your WhatsApp number (with country code), e.g. `+255700000000`       |
-| `LEADERBOARD_SITE_URL`  | Optional: dashboard URL, appended to WhatsApp alerts if set          |
+| `CALLMEBOT_PHONE`       | Your WhatsApp number (with country code), e.g. `+255700000000`     |
+| `CALLMEBOT_APIKEY`      | API key returned by CallMeBot during signup                        |
+| `LEADERBOARD_SITE_URL`  | Optional: dashboard URL, appended to WhatsApp alerts if set        |
 
-To get Twilio WhatsApp credentials: create a free Twilio account, open
-**Messaging > Try it out > Send a WhatsApp message** to join the sandbox (or
-apply for a production WhatsApp sender), and copy your Account SID and Auth
-Token from the console dashboard.
+To get a CallMeBot API key:
+
+1. Go to https://www.callmebot.com/blog/free-api-whatsapp-messages/ and add the
+   bot's contact number shown there to your phone contacts (the signup number
+   changes periodically, so use whatever the page currently lists rather than
+   a saved copy of it).
+2. From the phone logged into WhatsApp as `CALLMEBOT_PHONE`, message that
+   contact: `I allow callmebot to send me messages`.
+3. Within a couple of minutes you'll get a reply containing your personal API
+   key — that's `CALLMEBOT_APIKEY`. If it doesn't arrive, CallMeBot's docs say
+   to retry after ~24 hours.
 
 ## Running
 
@@ -63,7 +68,7 @@ GitHub Pages.
 
 To enable it:
 
-1. Set the five required env vars above as repository secrets
+1. Set the required env vars above as repository secrets
    (`Settings > Secrets and variables > Actions > Secrets`). If you set
    `LEADERBOARD_SITE_URL`, add it as a repository **variable** instead of a
    secret (`Settings > Secrets and variables > Actions > Variables`).

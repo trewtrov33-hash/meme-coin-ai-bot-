@@ -12,10 +12,8 @@ STATE_FILE = "leaderboard_state.json"
 SITE_OUTPUT_PATH = os.path.join("docs", "index.html")
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_WHATSAPP_FROM = os.getenv("TWILIO_WHATSAPP_FROM")  # e.g. "+14155238886"
-TWILIO_WHATSAPP_TO = os.getenv("TWILIO_WHATSAPP_TO")      # e.g. "+255700000000"
+CALLMEBOT_PHONE = os.getenv("CALLMEBOT_PHONE")    # e.g. "+255700000000", the WhatsApp number that ran the CallMeBot signup
+CALLMEBOT_APIKEY = os.getenv("CALLMEBOT_APIKEY")  # returned by CallMeBot after you message it "I allow callmebot to send me messages"
 SITE_URL = os.getenv("LEADERBOARD_SITE_URL", "")
 
 CLAUDE_MODEL = "claude-sonnet-5"
@@ -109,7 +107,8 @@ def generate_rank_shift_report(ranked_payload):
     TASK:
     Write a short WhatsApp message summarizing the hourly leaderboard changes.
     Use only WhatsApp-supported formatting: *bold* and _italic_. No headers,
-    no tables, no unsupported markdown.
+    no tables, no unsupported markdown. Keep the entire message under 600
+    characters total, since it is sent as a URL query parameter.
 
     FORMAT:
     \U0001F4CA *HOURLY MEME COIN RANK SHIFT REPORT* \U0001F4CA
@@ -125,7 +124,7 @@ def generate_rank_shift_report(ranked_payload):
 
     response = client.messages.create(
         model=CLAUDE_MODEL,
-        max_tokens=800,
+        max_tokens=400,
         messages=[{"role": "user", "content": prompt}]
     )
 
@@ -133,20 +132,16 @@ def generate_rank_shift_report(ranked_payload):
 
 
 def send_whatsapp_alert(text):
-    """Sends the report as a WhatsApp message via the Twilio WhatsApp API."""
-    url = f"https://api.twilio.com/2010-04-01/Accounts/{TWILIO_ACCOUNT_SID}/Messages.json"
-    payload = {
-        "From": f"whatsapp:{TWILIO_WHATSAPP_FROM}",
-        "To": f"whatsapp:{TWILIO_WHATSAPP_TO}",
-        "Body": text if not SITE_URL else f"{text}\n\nFull dashboard: {SITE_URL}",
+    """Sends the report as a WhatsApp message via the CallMeBot API."""
+    url = "https://api.callmebot.com/whatsapp.php"
+    body = text if not SITE_URL else f"{text}\n\nFull dashboard: {SITE_URL}"
+    params = {
+        "phone": CALLMEBOT_PHONE,
+        "text": body,
+        "apikey": CALLMEBOT_APIKEY,
     }
     try:
-        response = requests.post(
-            url,
-            data=payload,
-            auth=(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN),
-            timeout=10,
-        )
+        response = requests.get(url, params=params, timeout=15)
         response.raise_for_status()
     except Exception as e:
         print(f"Error sending WhatsApp alert: {e}", file=sys.stderr)
@@ -296,10 +291,8 @@ def render_site(ranked_payload):
 def main():
     missing = [name for name, value in (
         ("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY),
-        ("TWILIO_ACCOUNT_SID", TWILIO_ACCOUNT_SID),
-        ("TWILIO_AUTH_TOKEN", TWILIO_AUTH_TOKEN),
-        ("TWILIO_WHATSAPP_FROM", TWILIO_WHATSAPP_FROM),
-        ("TWILIO_WHATSAPP_TO", TWILIO_WHATSAPP_TO),
+        ("CALLMEBOT_PHONE", CALLMEBOT_PHONE),
+        ("CALLMEBOT_APIKEY", CALLMEBOT_APIKEY),
     ) if not value]
     if missing:
         print(f"Missing required environment variables: {', '.join(missing)}", file=sys.stderr)
