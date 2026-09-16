@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 import requests
 import anthropic
 
-DEXSCREENER_URL = "https://api.dexscreener.com/latest/dex/search?q=solana"
+DEXSCREENER_BOOSTS_URL = "https://api.dexscreener.com/token-boosts/top/v1"
+DEXSCREENER_TOKENS_URL = "https://api.dexscreener.com/tokens/v1/solana/{addresses}"
 STATE_FILE = "leaderboard_state.json"
 SITE_OUTPUT_PATH = os.path.join("docs", "index.html")
 
@@ -37,40 +38,64 @@ def save_current_state(current_ranks):
 
 
 def fetch_current_top_tokens():
-    """Fetches Solana tokens filtered by $50k+ liquidity baseline sorted by 1h volume."""
+    """Fetches trending Solana tokens (DexScreener's boosted-tokens list, which
+    surfaces actively promoted/trending tokens -- mostly meme coins -- rather
+    than a generic text search) filtered by $50k+ liquidity, sorted by 1h volume."""
     try:
-        response = requests.get(DEXSCREENER_URL, timeout=10)
-        response.raise_for_status()
-        pairs = response.json().get("pairs") or []
+        boosts_resp = requests.get(DEXSCREENER_BOOSTS_URL, timeout=10)
+        boosts_resp.raise_for_status()
+        boosts = boosts_resp.json() or []
 
-        candidates = []
+        addresses = []
+        seen = set()
+        for b in boosts:
+            if b.get("chainId") != "solana":
+                continue
+            addr = b.get("tokenAddress")
+            if addr and addr not in seen:
+                seen.add(addr)
+                addresses.append(addr)
+
+        print(f"Found {len(addresses)} boosted Solana token addresses.")
+        if not addresses:
+            return []
+
+        # DexScreener's tokens endpoint accepts up to 30 comma-separated addresses.
+        tokens_url = DEXSCREENER_TOKENS_URL.format(addresses=",".join(addresses[:30]))
+        pairs_resp = requests.get(tokens_url, timeout=10)
+        pairs_resp.raise_for_status()
+        data = pairs_resp.json()
+        pairs = data if isinstance(data, list) else (data or {}).get("pairs") or []
+        print(f"Fetched {len(pairs)} pairs for those tokens.")
+
+        # A token can have multiple pools/pairs; keep only its highest-liquidity one.
+        best_by_symbol = {}
         for p in pairs:
-            # The search endpoint returns pairs from other chains too (Base, BSC, ...)
-            # that merely match "solana" as a search term; only keep actual Solana pairs.
             if p.get("chainId") != "solana":
                 continue
 
             symbol = p.get("baseToken", {}).get("symbol") or "UNKNOWN"
-            if symbol.upper() in ("SOL", "WSOL"):
-                continue  # native/wrapped SOL isn't a meme coin
+            if symbol.upper() in ("SOL", "WSOL", "USDC", "USDT"):
+                continue  # not meme coins
 
             liq = p.get("liquidity", {}).get("usd") or 0
-            vol_h1 = p.get("volume", {}).get("h1") or 0
+            if liq < 50000:
+                continue
 
-            # Filter: Minimum $50k liquidity baseline
-            if liq >= 50000:
-                candidates.append({
+            existing = best_by_symbol.get(symbol)
+            if existing is None or liq > existing["liquidity_usd"]:
+                best_by_symbol[symbol] = {
                     "symbol": symbol,
                     "name": p.get("baseToken", {}).get("name") or "Unknown",
                     "price_usd": p.get("priceUsd", "0"),
                     "liquidity_usd": liq,
-                    "volume_1h": vol_h1,
+                    "volume_1h": p.get("volume", {}).get("h1") or 0,
                     "price_change_h1": p.get("priceChange", {}).get("h1", 0),
                     "url": p.get("url", "")
-                })
+                }
 
-        # Sort candidates by 1h volume to construct live ranking
-        candidates = sorted(candidates, key=lambda x: x["volume_1h"], reverse=True)
+        candidates = sorted(best_by_symbol.values(), key=lambda x: x["volume_1h"], reverse=True)
+        print(f"{len(candidates)} candidates passed filtering.")
         return candidates[:5]
     except Exception as e:
         print(f"Error fetching DexScreener data: {e}", file=sys.stderr)
