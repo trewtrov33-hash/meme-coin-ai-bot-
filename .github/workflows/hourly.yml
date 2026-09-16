@@ -5,6 +5,15 @@ on:
     - cron: "0 * * * *"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
@@ -28,9 +37,10 @@ jobs:
 
       - name: Run leaderboard bot
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CALLMEBOT_PHONE: ${{ secrets.CALLMEBOT_PHONE }}
+          CALLMEBOT_APIKEY: ${{ secrets.CALLMEBOT_APIKEY }}
+          LEADERBOARD_SITE_URL: ${{ vars.LEADERBOARD_SITE_URL }}
         run: python leaderboard_bot.py
 
       - name: Save leaderboard state
@@ -39,3 +49,11 @@ jobs:
         with:
           path: leaderboard_state.json
           key: leaderboard-state-${{ github.run_id }}
+
+      - name: Upload dashboard artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+      - name: Deploy dashboard to GitHub Pages
+        uses: actions/deploy-pages@v4
