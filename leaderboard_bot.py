@@ -336,11 +336,15 @@ def main():
         ranked_payload, new_state = compute_rank_shifts(current_tokens, prev_ranks)
         report = generate_rank_shift_report(ranked_payload)
         send_whatsapp_alert(report)
-        render_site(ranked_payload)
         save_current_state(new_state)
         print("Hourly leaderboard update successfully processed.")
     else:
+        ranked_payload = []
         print("No qualifying tokens found this run; skipping alert.")
+
+    # Always regenerate the dashboard, even with an empty ranking, so the
+    # GitHub Pages publish step always has a docs/index.html to upload.
+    render_site(ranked_payload)
 
 
 if __name__ == "__main__":
