@@ -45,14 +45,23 @@ def fetch_current_top_tokens():
 
         candidates = []
         for p in pairs:
+            # The search endpoint returns pairs from other chains too (Base, BSC, ...)
+            # that merely match "solana" as a search term; only keep actual Solana pairs.
+            if p.get("chainId") != "solana":
+                continue
+
+            symbol = p.get("baseToken", {}).get("symbol") or "UNKNOWN"
+            if symbol.upper() in ("SOL", "WSOL"):
+                continue  # native/wrapped SOL isn't a meme coin
+
             liq = p.get("liquidity", {}).get("usd") or 0
             vol_h1 = p.get("volume", {}).get("h1") or 0
 
             # Filter: Minimum $50k liquidity baseline
             if liq >= 50000:
                 candidates.append({
-                    "symbol": p.get("baseToken", {}).get("symbol", "UNKNOWN"),
-                    "name": p.get("baseToken", {}).get("name", "Unknown"),
+                    "symbol": symbol,
+                    "name": p.get("baseToken", {}).get("name") or "Unknown",
                     "price_usd": p.get("priceUsd", "0"),
                     "liquidity_usd": liq,
                     "volume_1h": vol_h1,
