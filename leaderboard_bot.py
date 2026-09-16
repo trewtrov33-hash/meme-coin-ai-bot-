@@ -94,8 +94,28 @@ def compute_rank_shifts(current_tokens, previous_state):
     return ranked_payload, current_state_map
 
 
+def render_plain_report(ranked_payload):
+    """Builds the WhatsApp report directly from the ranked data, no AI involved."""
+    lines = ["\U0001F4CA *HOURLY MEME COIN RANK SHIFT REPORT* \U0001F4CA"]
+    for token in ranked_payload:
+        lines.append(
+            f"\n#{token['current_rank']} *${token['symbol']}* | {token['rank_shift']}\n"
+            f"Price: ${token['price_usd']} | 1h Vol: ${token['volume_1h']:,.0f} | "
+            f"Liquidity: ${token['liquidity_usd']:,.0f}\n"
+            f"Chart: {token['url']}"
+        )
+    return "\n".join(lines)
+
+
 def generate_rank_shift_report(ranked_payload):
-    """Asks Claude to turn the ranked payload into a short WhatsApp-ready summary."""
+    """Asks Claude to turn the ranked payload into a short WhatsApp-ready summary.
+
+    Falls back to a plain, non-AI formatted report when no Anthropic API key
+    is configured, so the bot still runs without that dependency.
+    """
+    if not ANTHROPIC_API_KEY:
+        return render_plain_report(ranked_payload)
+
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     prompt = f"""
@@ -290,13 +310,15 @@ def render_site(ranked_payload):
 
 def main():
     missing = [name for name, value in (
-        ("ANTHROPIC_API_KEY", ANTHROPIC_API_KEY),
         ("CALLMEBOT_PHONE", CALLMEBOT_PHONE),
         ("CALLMEBOT_APIKEY", CALLMEBOT_APIKEY),
     ) if not value]
     if missing:
         print(f"Missing required environment variables: {', '.join(missing)}", file=sys.stderr)
         sys.exit(1)
+
+    if not ANTHROPIC_API_KEY:
+        print("ANTHROPIC_API_KEY not set; using plain-text report instead of Claude-generated commentary.")
 
     prev_ranks = load_previous_state()
     current_tokens = fetch_current_top_tokens()

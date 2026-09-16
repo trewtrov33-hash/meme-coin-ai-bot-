@@ -2,8 +2,8 @@
 
 An hourly bot that tracks the top 5 Solana meme coins by 1-hour trading
 volume (via DexScreener), compares them against the previous hour's
-rankings, sends a WhatsApp alert with Claude-written rank-shift commentary,
-and publishes a dedicated live dashboard website.
+rankings, sends a WhatsApp alert (optionally with Claude-written rank-shift
+commentary), and publishes a dedicated live dashboard website.
 
 ## How it works
 
@@ -14,7 +14,8 @@ and publishes a dedicated live dashboard website.
    the previous run (`leaderboard_state.json`) to compute NEW ENTRY / RISING
    / DROPPING / HOLDING status per token.
 3. `generate_rank_shift_report()` asks Claude to turn that data into a short
-   WhatsApp-ready summary.
+   WhatsApp-ready summary — or, if no `ANTHROPIC_API_KEY` is set, falls back
+   to a plain templated report built directly from the data (no AI, no cost).
 4. `send_whatsapp_alert()` sends it to your phone via the CallMeBot WhatsApp API.
 5. `render_site()` writes a standalone dashboard (`docs/index.html`) showing
    the full leaderboard, styled and theme-aware.
@@ -32,10 +33,15 @@ Required environment variables:
 
 | Variable               | Description                                                        |
 |-------------------------|--------------------------------------------------------------------|
-| `ANTHROPIC_API_KEY`     | API key used to generate the report with Claude                    |
 | `CALLMEBOT_PHONE`       | Your WhatsApp number (with country code), e.g. `+255700000000`     |
 | `CALLMEBOT_APIKEY`      | API key returned by CallMeBot during signup                        |
-| `LEADERBOARD_SITE_URL`  | Optional: dashboard URL, appended to WhatsApp alerts if set        |
+
+Optional environment variables:
+
+| Variable               | Description                                                        |
+|-------------------------|--------------------------------------------------------------------|
+| `ANTHROPIC_API_KEY`     | If set, Claude writes the report; if unset, a plain templated report is used instead |
+| `LEADERBOARD_SITE_URL`  | Dashboard URL, appended to WhatsApp alerts if set                  |
 
 To get a CallMeBot API key:
 
